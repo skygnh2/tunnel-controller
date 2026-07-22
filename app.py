@@ -301,7 +301,7 @@ class TunnelServer:
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         srv.bind((self.host, self.port))
         srv.listen(200)
-        print(f"[*] Tunnel listening: {self.host}:{self.port}", flush=True)
+        print(f"[*] SOCKS5 Tunnel listening: {self.host}:{self.port}", flush=True)
         while running:
             try:
                 cli, addr = srv.accept()
@@ -315,19 +315,84 @@ class TunnelServer:
             data = cli.recv(16384)
             if not data:
                 return
-            first = data.split(b"\r\n")[0].split(b" ")
-            if len(first) < 3:
-                return
-            if first[0].upper() == b"CONNECT":
-                self.do_connect(cli, data)
+            # SOCKS5 handshake: version 0x05
+            if data[0] == 0x05:
+                self.do_socks5(cli, data)
             else:
-                self.do_http(cli, data)
+                # Fallback to HTTP proxy
+                first = data.split(b"\r\n")[0].split(b" ")
+                if len(first) >= 3 and first[0].upper() == b"CONNECT":
+                    self.do_connect(cli, data)
+                else:
+                    self.do_http(cli, data)
             rotation_count += 1
         except:
             pass
         finally:
             try: cli.close()
             except: pass
+
+    def do_socks5(self, cli, data):
+        """SOCKS5 proxy protocol"""
+        # Step 1: Auth negotiation
+        if data[0] != 0x05:
+            return
+        # Reply: no auth required
+        cli.sendall(b"\x05\x00")
+        
+        # Step 2: Connection request
+        req = cli.recv(4096)
+        if len(req) < 4 or req[0] != 0x05:
+            return
+        
+        cmd = req[1]  # 0x01 = connect
+        atyp = req[3]  # address type
+        
+        if atyp == 0x01:  # IPv4
+            target_ip = socket.inet_ntoa(req[4:8])
+            target_port = int.from_bytes(req[8:10], "big")
+        elif atyp == 0x03:  # Domain
+            domain_len = req[4]
+            target_ip = req[5:5+domain_len].decode()
+            target_port = int.from_bytes(req[5+domain_len:5+domain_len+2], "big")
+        elif atyp == 0x04:  # IPv6
+            target_ip = socket.inet_ntop(socket.AF_INET6, req[4:20])
+            target_port = int.from_bytes(req[20:22], "big")
+        else:
+            cli.sendall(b"\x05\x08\x00\x01\x00\x00\x00\x00\x00\x00")
+            return
+
+        if cmd != 0x01:  # Only support CONNECT
+            cli.sendall(b"\x05\x07\x00\x01\x00\x00\x00\x00\x00\x00")
+            return
+
+        proxy = get_next_proxy()
+        if not proxy:
+            cli.sendall(b"\x05\x04\x00\x01\x00\x00\x00\x00\x00\x00")
+            return
+
+        try:
+            up = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            up.settimeout(10)
+            up.connect((proxy["ip"], proxy["port"]))
+            
+            # Forward via upstream HTTP proxy CONNECT
+            up.sendall(f"CONNECT {target_ip}:{target_port} HTTP/1.1\r\n\r\n".encode())
+            resp = up.recv(4096)
+            
+            if b"200" in resp:
+                # Success reply
+                cli.sendall(b"\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00")
+                relay(cli, up)
+            else:
+                cli.sendall(b"\x05\x05\x00\x01\x00\x00\x00\x00\x00\x00")
+            up.close()
+        except:
+            proxy["failures"] += 1
+            try:
+                cli.sendall(b"\x05\x05\x00\x01\x00\x00\x00\x00\x00\x00")
+            except:
+                pass
 
     def do_http(self, cli, data):
         proxy = get_next_proxy()
@@ -702,9 +767,8 @@ async function fetchStatus() {{
       pc.textContent = `节点池: ${{det.pool_size||0}}`;
       const proxyDiv = document.getElementById('proxy-address');
       const proxyUrl = document.getElementById('proxy-url');
-      const pUser = det.proxy_user || 'proxy';
       const pPort = det.proxy_port || 8888;
-      proxyUrl.textContent = `http://${{pUser}}:${{det.proxy_pass||'***'}}@${{nodes[0].ip}}:${{pPort}}`;
+      proxyUrl.textContent = `socks5://${{nodes[0].ip}}:${{pPort}}`;
       proxyDiv.classList.remove('hidden');
     }} else {{
       st.textContent = '离线';
