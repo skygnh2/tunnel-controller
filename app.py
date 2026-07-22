@@ -313,7 +313,8 @@ def heartbeat_loop():
                 "rotation_count": rotation_count,
                 "uptime": f"{int((time.time() - start_time) / 60)}m",
                 "web_user": get_config().get("web_user", WEB_USER),
-                "proxy_user": get_config().get("proxy_user", PROXY_USER)
+                "proxy_user": get_config().get("proxy_user", PROXY_USER),
+                "proxy_pass": get_config().get("proxy_pass", PROXY_PASS)
             }
             db_execute("INSERT INTO node_status (ip, details, last_seen) VALUES (?, ?, ?) ON CONFLICT(ip) DO UPDATE SET details = excluded.details, last_seen = excluded.last_seen",
                        (ip, json.dumps(details), int(time.time() * 1000)))
@@ -521,6 +522,13 @@ body {{ font-family: 'Inter', sans-serif; background: #0f172a; }}
     <div class="bg-slate-900/80 rounded-2xl p-6 border border-slate-800">
       <h2 class="text-lg font-bold text-white mb-4">状态</h2>
       <div id="vps-details" class="text-sm space-y-2 text-slate-400"><p>等待连接...</p></div>
+      <div id="proxy-address" class="mt-4 pt-4 border-t border-slate-800 hidden">
+        <h3 class="text-sm font-bold text-slate-300 mb-2">代理地址</h3>
+        <div class="bg-slate-950 rounded-lg p-3">
+          <code id="proxy-url" class="text-xs font-mono text-green-400 break-all"></code>
+        </div>
+        <button onclick="copyProxy()" class="mt-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-bold transition-all">复制</button>
+      </div>
     </div>
   </div>
   <div class="mt-6 bg-slate-900/80 rounded-2xl p-6 border border-slate-800">
@@ -583,13 +591,20 @@ async function fetchStatus() {{
       st.textContent = '在线';
       st.className = 'px-3 py-1 rounded-full text-xs font-bold bg-green-900/50 text-green-400';
       const det = typeof nodes[0].details === 'string' ? JSON.parse(nodes[0].details) : nodes[0].details;
-      vpsDiv.innerHTML = `<p>IP: ${{nodes[0].ip}}</p><p>Pool: ${{det.pool_size||0}}</p><p>Switches: ${{det.rotation_count||0}}</p><p>Uptime: ${{det.uptime||'--'}}</p>`;
-      pc.textContent = `Pool: ${{det.pool_size||0}}`;
+      vpsDiv.innerHTML = `<p>IP: ${{nodes[0].ip}}</p><p>节点池: ${{det.pool_size||0}}</p><p>已轮换: ${{det.rotation_count||0}} 次</p><p>运行时间: ${{det.uptime||'--'}}</p>`;
+      pc.textContent = `节点池: ${{det.pool_size||0}}`;
+      const proxyDiv = document.getElementById('proxy-address');
+      const proxyUrl = document.getElementById('proxy-url');
+      const pUser = det.proxy_user || 'proxy';
+      const pPort = det.proxy_port || 8888;
+      proxyUrl.textContent = `http://${{pUser}}:${{det.proxy_pass||'***'}}@${{nodes[0].ip}}:${{pPort}}`;
+      proxyDiv.classList.remove('hidden');
     }} else {{
       st.textContent = '离线';
       st.className = 'px-3 py-1 rounded-full text-xs font-bold bg-red-900/50 text-red-400';
       vpsDiv.innerHTML = '<p class="text-slate-500">暂无数据</p>';
       pc.textContent = '节点池: 0';
+      document.getElementById('proxy-address').classList.add('hidden');
     }}
     const lc = document.getElementById('log-container');
     if (logs.length > 0) {{
@@ -598,6 +613,10 @@ async function fetchStatus() {{
       lc.innerHTML = '<div class="text-slate-500">暂无日志</div>';
     }}
   }} catch(e) {{}}
+}}
+function copyProxy() {{
+  const text = document.getElementById('proxy-url').textContent;
+  navigator.clipboard.writeText(text).then(() => alert('已复制'));
 }}
 fetchConfig();
 fetchStatus();
