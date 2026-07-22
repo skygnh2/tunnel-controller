@@ -139,6 +139,7 @@ class AuthMixin:
 
 proxy_pool = []
 pool_lock = threading.Lock()
+refresh_lock = threading.Lock()
 rotation_count = 0
 start_time = time.time()
 running = True
@@ -218,52 +219,57 @@ def check_proxy(proxy, target_url, timeout=5):
         return False, 999
 
 def refresh_pool():
-    global proxy_pool
-    cfg = get_config()
-    source_urls = cfg.get("proxy_source", DEFAULT_CONFIG["proxy_source"])
-    target_url = cfg.get("target_url", DEFAULT_CONFIG["target_url"])
-    max_w = int(cfg.get("max_workers", 20))
+    if not refresh_lock.acquire(blocking=False):
+        return  # Another refresh is already in progress
+    try:
+        global proxy_pool
+        cfg = get_config()
+        source_urls = cfg.get("proxy_source", DEFAULT_CONFIG["proxy_source"])
+        target_url = cfg.get("target_url", DEFAULT_CONFIG["target_url"])
+        max_w = int(cfg.get("max_workers", 20))
 
-    # Support multiple sources (comma-separated)
-    urls = [u.strip() for u in source_urls.split(",") if u.strip()]
+        # Support multiple sources (comma-separated)
+        urls = [u.strip() for u in source_urls.split(",") if u.strip()]
 
-    all_raw = []
-    for url in urls:
-        print(f"[*] Fetching from: {url}", flush=True)
-        raw = fetch_proxies(url)
-        print(f"[*] Got {len(raw)} nodes", flush=True)
-        all_raw.extend(raw)
+        all_raw = []
+        for url in urls:
+            print(f"[*] Fetching from: {url}", flush=True)
+            raw = fetch_proxies(url)
+            print(f"[*] Got {len(raw)} nodes", flush=True)
+            all_raw.extend(raw)
 
-    # Deduplicate by ip:port
-    seen = set()
-    unique = []
-    for p in all_raw:
-        key = f"{p['ip']}:{p['port']}"
-        if key not in seen:
-            seen.add(key)
-            unique.append(p)
+        # Deduplicate by ip:port
+        seen = set()
+        unique = []
+        for p in all_raw:
+            key = f"{p['ip']}:{p['port']}"
+            if key not in seen:
+                seen.add(key)
+                unique.append(p)
 
-    print(f"[*] Total unique nodes: {len(unique)}, checking...", flush=True)
+        print(f"[*] Total unique nodes: {len(unique)}, checking...", flush=True)
 
-    valid = []
-    with ThreadPoolExecutor(max_workers=max_w) as ex:
-        futs = {ex.submit(check_proxy, p, target_url): p for p in unique}
-        for f in as_completed(futs):
-            ok, lat = f.result()
-            if ok:
-                p = futs[f]
-                p["latency"] = lat
-                valid.append(p)
+        valid = []
+        with ThreadPoolExecutor(max_workers=max_w) as ex:
+            futs = {ex.submit(check_proxy, p, target_url): p for p in unique}
+            for f in as_completed(futs):
+                ok, lat = f.result()
+                if ok:
+                    p = futs[f]
+                    p["latency"] = lat
+                    valid.append(p)
 
-    with pool_lock:
-        valid.sort(key=lambda x: x["latency"])
-        proxy_pool = valid[:100]
+        with pool_lock:
+            valid.sort(key=lambda x: x["latency"])
+            proxy_pool = valid[:100]
 
-    # Persist pool to database
-    save_pool_to_db(proxy_pool)
+        # Persist pool to database
+        save_pool_to_db(proxy_pool)
 
-    print(f"[*] Available: {len(proxy_pool)}/{len(unique)}", flush=True)
-    report_log(f"Pool refresh: {len(proxy_pool)}/{len(unique)}")
+        print(f"[*] Available: {len(proxy_pool)}/{len(unique)}", flush=True)
+        report_log(f"Pool refresh: {len(proxy_pool)}/{len(unique)}")
+    finally:
+        refresh_lock.release()
 
 def get_next_proxy():
     with pool_lock:
