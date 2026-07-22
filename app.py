@@ -322,6 +322,7 @@ def heartbeat_loop():
             pass
 
 def pool_refresh_loop():
+    time.sleep(5)
     while running:
         refresh_pool()
         interval = int(get_config().get("refresh_interval", 300))
