@@ -600,13 +600,13 @@ setInterval(fetchStatus, 8000);
 
 
 if __name__ == "__main__":
+    init_db()
+
     print("=" * 50)
     print("  Tunnel Controller - VPS Standalone")
     print(f"  Dashboard: http://0.0.0.0:{LISTEN_PORT}")
     print(f"  Tunnel:    port {int(get_config().get('proxy_port', 8888))}")
     print("=" * 50)
-
-    init_db()
 
     threading.Thread(target=refresh_pool, daemon=True).start()
     threading.Thread(target=pool_refresh_loop, daemon=True).start()
