@@ -76,7 +76,11 @@ DEFAULT_CONFIG = {
     "rotation_mode": "request",
     "rotation_interval": "0",
     "max_workers": "20",
-    "proxy_source": "http://www.zdopen.com/FreeProxy/Get/?app_id=202607221844468209&akey=8c23c9c97a0dae2b&dalu=1&return_type=3"
+    "proxy_source": "",
+    "web_user": WEB_USER,
+    "web_pass": WEB_PASS,
+    "proxy_user": PROXY_USER,
+    "proxy_pass": PROXY_PASS
 }
 
 def get_config():
@@ -307,7 +311,9 @@ def heartbeat_loop():
                 "proxy_port": int(get_config().get("proxy_port", 8888)),
                 "pool_size": pool_size,
                 "rotation_count": rotation_count,
-                "uptime": f"{int((time.time() - start_time) / 60)}m"
+                "uptime": f"{int((time.time() - start_time) / 60)}m",
+                "web_user": get_config().get("web_user", WEB_USER),
+                "proxy_user": get_config().get("proxy_user", PROXY_USER)
             }
             db_execute("INSERT INTO node_status (ip, details, last_seen) VALUES (?, ?, ?) ON CONFLICT(ip) DO UPDATE SET details = excluded.details, last_seen = excluded.last_seen",
                        (ip, json.dumps(details), int(time.time() * 1000)))
@@ -321,13 +327,16 @@ def pool_refresh_loop():
         time.sleep(interval)
 
 def get_auth_from_handler(handler):
+    cfg = get_config()
+    u = cfg.get("web_user", WEB_USER)
+    p = cfg.get("web_pass", WEB_PASS)
     auth = handler.headers.get("Authorization", "")
     if not auth.startswith("Basic "):
         return False
     try:
         decoded = base64.b64decode(auth[6:]).decode()
-        u, p = decoded.split(":", 1)
-        return u == WEB_USER and p == WEB_PASS
+        username, password = decoded.split(":", 1)
+        return username == u and password == p
     except:
         return False
 
@@ -407,7 +416,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "rotation_mode": data.get("rotation_mode") or current.get("rotation_mode", DEFAULT_CONFIG["rotation_mode"]),
                 "rotation_interval": str(data.get("rotation_interval") or current.get("rotation_interval", DEFAULT_CONFIG["rotation_interval"])),
                 "max_workers": str(data.get("max_workers") or current.get("max_workers", DEFAULT_CONFIG["max_workers"])),
-                "proxy_source": data.get("proxy_source") or current.get("proxy_source", DEFAULT_CONFIG["proxy_source"])
+                "proxy_source": data.get("proxy_source") if data.get("proxy_source") is not None else current.get("proxy_source", DEFAULT_CONFIG["proxy_source"]),
+                "web_user": data.get("web_user") or current.get("web_user", DEFAULT_CONFIG["web_user"]),
+                "web_pass": data.get("web_pass") or current.get("web_pass", DEFAULT_CONFIG["web_pass"]),
+                "proxy_user": data.get("proxy_user") or current.get("proxy_user", DEFAULT_CONFIG["proxy_user"]),
+                "proxy_pass": data.get("proxy_pass") or current.get("proxy_pass", DEFAULT_CONFIG["proxy_pass"])
             }
             save_config(cfg)
             return self.send_text("OK")
@@ -472,12 +485,31 @@ body {{ font-family: 'Inter', sans-serif; background: #0f172a; }}
           <input id="max-workers" type="number" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value="20"></div>
       </div>
       <div class="mt-4"><label class="text-xs text-slate-400 font-medium">Node Source URL</label>
-        <input id="proxy-source" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white font-mono" value="http://www.zdopen.com/FreeProxy/Get/?app_id=202607221844468209&akey=8c23c9c97a0dae2b&dalu=1&return_type=3"></div>
+        <input id="proxy-source" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white font-mono" placeholder="Enter proxy API URL..."></div>
+      <div class="mt-4"><label class="text-xs text-slate-400 font-medium">Rotation Mode</label>
+        <div class="flex gap-3 mt-1">
+          <label class="flex items-center gap-1 text-sm"><input type="radio" name="rot-mode" value="request" checked> Per-request</label>
+          <label class="flex items-center gap-1 text-sm"><input type="radio" name="rot-mode" value="interval"> Timed</label>
+        </div></div>
+      <div class="mt-4"><label class="text-xs text-slate-400 font-medium">Rotation Interval (s) <span class="text-slate-600">- 0=disabled, only for timed mode</span></label>
+        <input id="rotation-interval" type="number" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value="0"></div>
+      <div class="mt-4 grid grid-cols-2 gap-4">
+        <div><label class="text-xs text-slate-400 font-medium">Dashboard User</label>
+          <input id="web-user" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value=""></div>
+        <div><label class="text-xs text-slate-400 font-medium">Dashboard Password</label>
+          <input id="web-pass" type="password" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value=""></div>
+      </div>
+      <div class="mt-4 grid grid-cols-2 gap-4">
+        <div><label class="text-xs text-slate-400 font-medium">Proxy Auth User</label>
+          <input id="proxy-user" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value=""></div>
+        <div><label class="text-xs text-slate-400 font-medium">Proxy Auth Password</label>
+          <input id="proxy-pass" type="password" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value=""></div>
+      </div>
       <div class="flex gap-3 mt-6">
         <button onclick="saveConfig()" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-bold transition-all">Save</button>
         <button onclick="fetchConfig()" class="px-6 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-bold transition-all">Refresh</button>
       </div>
-      <div id="save-msg" class="mt-2 text-sm text-green-400 hidden">Saved</div>
+      <div id="save-msg" class="mt-2 text-sm text-green-400 hidden">Saved. Port/credential changes require service restart.</div>
     </div>
     <div class="bg-slate-900/80 rounded-2xl p-6 border border-slate-800">
       <h2 class="text-lg font-bold text-white mb-4">Status</h2>
@@ -503,19 +535,33 @@ async function fetchConfig() {{
     document.getElementById('refresh-interval').value = c.refresh_interval || 300;
     document.getElementById('max-workers').value = c.max_workers || 20;
     document.getElementById('proxy-source').value = c.proxy_source || '';
+    document.getElementById('rotation-interval').value = c.rotation_interval || 0;
+    const mode = c.rotation_mode || 'request';
+    document.querySelectorAll('input[name="rot-mode"]').forEach(r => {{ r.checked = (r.value === mode); }});
+    document.getElementById('web-user').value = c.web_user || '';
+    document.getElementById('web-pass').value = c.web_pass || '';
+    document.getElementById('proxy-user').value = c.proxy_user || '';
+    document.getElementById('proxy-pass').value = c.proxy_pass || '';
   }} catch(e) {{}}
 }}
 async function saveConfig() {{
+  const mode = document.querySelector('input[name="rot-mode"]:checked')?.value || 'request';
   const p = {{
     target_url: document.getElementById('target-url').value,
     proxy_port: parseInt(document.getElementById('proxy-port').value) || 8888,
     refresh_interval: parseInt(document.getElementById('refresh-interval').value) || 300,
+    rotation_mode: mode,
+    rotation_interval: parseInt(document.getElementById('rotation-interval').value) || 0,
     max_workers: parseInt(document.getElementById('max-workers').value) || 20,
-    proxy_source: document.getElementById('proxy-source').value
+    proxy_source: document.getElementById('proxy-source').value,
+    web_user: document.getElementById('web-user').value,
+    web_pass: document.getElementById('web-pass').value,
+    proxy_user: document.getElementById('proxy-user').value,
+    proxy_pass: document.getElementById('proxy-pass').value
   }};
   await fetch('/api/config', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify(p)}});
   document.getElementById('save-msg').classList.remove('hidden');
-  setTimeout(() => document.getElementById('save-msg').classList.add('hidden'), 3000);
+  setTimeout(() => document.getElementById('save-msg').classList.add('hidden'), 4000);
 }}
 async function fetchStatus() {{
   try {{
