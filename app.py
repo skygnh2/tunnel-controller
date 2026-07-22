@@ -300,9 +300,16 @@ def heartbeat_loop():
         try:
             ip = "unknown"
             try:
-                req = urllib.request.Request("https://api.ipify.org", headers={"User-Agent": "curl/7.68.0"})
-                with urllib.request.urlopen(req, timeout=5) as r:
-                    ip = r.read().decode().strip()
+                for svc in ["https://httpbin.org/ip", "https://api.ipify.org", "https://ifconfig.me/ip", "https://icanhazip.com"]:
+                    try:
+                        req = urllib.request.Request(svc, headers={"User-Agent": "curl/7.68.0"})
+                        with urllib.request.urlopen(req, timeout=5) as r:
+                            text = r.read().decode().strip()
+                            ip = text.replace('"', '').split("Origin")[-1].split(":")[-1].strip().strip("}") if "{" in text else text
+                            if ip and "." in ip:
+                                break
+                    except:
+                        continue
             except:
                 pass
             with pool_lock:
