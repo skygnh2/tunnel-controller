@@ -93,7 +93,7 @@ def load_pool_from_db():
     return []
 
 DEFAULT_CONFIG = {
-    "target_url": "https://www.cloudflare.com",
+    "target_url": "https://opencode.ai",
     "proxy_port": "8888",
     "refresh_interval": "300",
     "rotation_mode": "request",
