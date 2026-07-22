@@ -454,7 +454,7 @@ DASHBOARD_HTML = lambda: f"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tunnel Controller</title>
+<title>隧道控制器</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -470,66 +470,66 @@ body {{ font-family: 'Inter', sans-serif; background: #0f172a; }}
 <div class="max-w-6xl mx-auto p-6">
   <div class="flex items-center justify-between mb-8">
     <div>
-      <h1 class="text-2xl font-bold text-white">Tunnel Controller</h1>
-      <p class="text-sm text-slate-400 mt-1">Multi-node tunnel scheduling engine</p>
+      <h1 class="text-2xl font-bold text-white">隧道控制器</h1>
+      <p class="text-sm text-slate-400 mt-1">多节点隧道调度引擎</p>
     </div>
     <div class="flex items-center gap-3">
-      <span id="vps-status" class="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400">Offline</span>
-      <span id="proxy-count" class="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400">Pool: --</span>
+      <span id="vps-status" class="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400">离线</span>
+      <span id="proxy-count" class="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400">节点池: --</span>
     </div>
   </div>
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <div class="lg:col-span-2 bg-slate-900/80 rounded-2xl p-6 border border-slate-800">
-      <h2 class="text-lg font-bold text-white mb-4">Configuration</h2>
+      <h2 class="text-lg font-bold text-white mb-4">配置</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div><label class="text-xs text-slate-400 font-medium">Target URL</label>
+        <div><label class="text-xs text-slate-400 font-medium">目标地址</label>
           <input id="target-url" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value="https://www.cloudflare.com"></div>
-        <div><label class="text-xs text-slate-400 font-medium">Local Port</label>
+        <div><label class="text-xs text-slate-400 font-medium">隧道端口</label>
           <input id="proxy-port" type="number" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value="8888"></div>
-        <div><label class="text-xs text-slate-400 font-medium">Refresh Interval (s)</label>
+        <div><label class="text-xs text-slate-400 font-medium">刷新间隔 (秒)</label>
           <input id="refresh-interval" type="number" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value="300"></div>
-        <div><label class="text-xs text-slate-400 font-medium">Concurrency</label>
+        <div><label class="text-xs text-slate-400 font-medium">并发数</label>
           <input id="max-workers" type="number" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value="20"></div>
       </div>
-      <div class="mt-4"><label class="text-xs text-slate-400 font-medium">Node Source URL</label>
-        <input id="proxy-source" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white font-mono" placeholder="Enter proxy API URL..."></div>
-      <div class="mt-4"><label class="text-xs text-slate-400 font-medium">Rotation Mode</label>
+      <div class="mt-4"><label class="text-xs text-slate-400 font-medium">节点源 API 地址</label>
+        <input id="proxy-source" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white font-mono" placeholder="请输入代理 API 地址..."></div>
+      <div class="mt-4"><label class="text-xs text-slate-400 font-medium">轮换模式</label>
         <div class="flex gap-3 mt-1">
-          <label class="flex items-center gap-1 text-sm"><input type="radio" name="rot-mode" value="request" checked> Per-request</label>
-          <label class="flex items-center gap-1 text-sm"><input type="radio" name="rot-mode" value="interval"> Timed</label>
+          <label class="flex items-center gap-1 text-sm"><input type="radio" name="rot-mode" value="request" checked> 每次请求</label>
+          <label class="flex items-center gap-1 text-sm"><input type="radio" name="rot-mode" value="interval"> 定时轮换</label>
         </div></div>
-      <div class="mt-4"><label class="text-xs text-slate-400 font-medium">Rotation Interval (s) <span class="text-slate-600">- 0=disabled, only for timed mode</span></label>
+      <div class="mt-4"><label class="text-xs text-slate-400 font-medium">轮换间隔 (秒) <span class="text-slate-600">- 0=禁用，仅定时模式生效</span></label>
         <input id="rotation-interval" type="number" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value="0"></div>
       <div class="mt-4 grid grid-cols-2 gap-4">
-        <div><label class="text-xs text-slate-400 font-medium">Dashboard User</label>
+        <div><label class="text-xs text-slate-400 font-medium">面板用户名</label>
           <input id="web-user" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value=""></div>
-        <div><label class="text-xs text-slate-400 font-medium">Dashboard Password</label>
+        <div><label class="text-xs text-slate-400 font-medium">面板密码</label>
           <input id="web-pass" type="password" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value=""></div>
       </div>
       <div class="mt-4 grid grid-cols-2 gap-4">
-        <div><label class="text-xs text-slate-400 font-medium">Proxy Auth User</label>
+        <div><label class="text-xs text-slate-400 font-medium">代理认证用户名</label>
           <input id="proxy-user" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value=""></div>
-        <div><label class="text-xs text-slate-400 font-medium">Proxy Auth Password</label>
+        <div><label class="text-xs text-slate-400 font-medium">代理认证密码</label>
           <input id="proxy-pass" type="password" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value=""></div>
       </div>
       <div class="flex gap-3 mt-6">
-        <button onclick="saveConfig()" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-bold transition-all">Save</button>
-        <button onclick="fetchConfig()" class="px-6 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-bold transition-all">Refresh</button>
+        <button onclick="saveConfig()" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-bold transition-all">保存</button>
+        <button onclick="fetchConfig()" class="px-6 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-bold transition-all">刷新</button>
       </div>
-      <div id="save-msg" class="mt-2 text-sm text-green-400 hidden">Saved. Port/credential changes require service restart.</div>
+      <div id="save-msg" class="mt-2 text-sm text-green-400 hidden">已保存。端口/密码修改需要重启服务生效。</div>
     </div>
     <div class="bg-slate-900/80 rounded-2xl p-6 border border-slate-800">
-      <h2 class="text-lg font-bold text-white mb-4">Status</h2>
-      <div id="vps-details" class="text-sm space-y-2 text-slate-400"><p>Waiting...</p></div>
+      <h2 class="text-lg font-bold text-white mb-4">状态</h2>
+      <div id="vps-details" class="text-sm space-y-2 text-slate-400"><p>等待连接...</p></div>
     </div>
   </div>
   <div class="mt-6 bg-slate-900/80 rounded-2xl p-6 border border-slate-800">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-bold text-white">Logs</h2>
-      <button onclick="fetchStatus()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-bold transition-all">Refresh</button>
+      <h2 class="text-lg font-bold text-white">日志</h2>
+      <button onclick="fetchStatus()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-bold transition-all">刷新</button>
     </div>
     <div id="log-container" class="bg-slate-950 rounded-xl p-4 h-64 overflow-y-auto font-mono text-xs leading-relaxed">
-      <div class="text-slate-500">Waiting...</div></div>
+      <div class="text-slate-500">等待日志...</div></div>
   </div>
 </div>
 <script>
@@ -580,22 +580,22 @@ async function fetchStatus() {{
     const st = document.getElementById('vps-status');
     const pc = document.getElementById('proxy-count');
     if (nodes.length > 0) {{
-      st.textContent = 'Online';
+      st.textContent = '在线';
       st.className = 'px-3 py-1 rounded-full text-xs font-bold bg-green-900/50 text-green-400';
       const det = typeof nodes[0].details === 'string' ? JSON.parse(nodes[0].details) : nodes[0].details;
       vpsDiv.innerHTML = `<p>IP: ${{nodes[0].ip}}</p><p>Pool: ${{det.pool_size||0}}</p><p>Switches: ${{det.rotation_count||0}}</p><p>Uptime: ${{det.uptime||'--'}}</p>`;
       pc.textContent = `Pool: ${{det.pool_size||0}}`;
     }} else {{
-      st.textContent = 'Offline';
+      st.textContent = '离线';
       st.className = 'px-3 py-1 rounded-full text-xs font-bold bg-red-900/50 text-red-400';
-      vpsDiv.innerHTML = '<p class="text-slate-500">No data</p>';
-      pc.textContent = 'Pool: 0';
+      vpsDiv.innerHTML = '<p class="text-slate-500">暂无数据</p>';
+      pc.textContent = '节点池: 0';
     }}
     const lc = document.getElementById('log-container');
     if (logs.length > 0) {{
       lc.innerHTML = logs.map(l => `<div class="log-entry py-1"><span class="text-slate-600">[${{new Date(l.created_at).toLocaleTimeString()}}]</span> <span class="text-slate-300">${{l.log}}</span></div>`).join('');
     }} else {{
-      lc.innerHTML = '<div class="text-slate-500">No logs</div>';
+      lc.innerHTML = '<div class="text-slate-500">暂无日志</div>';
     }}
   }} catch(e) {{}}
 }}
