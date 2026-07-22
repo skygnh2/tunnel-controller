@@ -333,12 +333,43 @@ class TunnelServer:
             except: pass
 
     def do_socks5(self, cli, data):
-        """SOCKS5 proxy protocol"""
+        """SOCKS5 proxy protocol with username/password auth"""
         # Step 1: Auth negotiation
         if data[0] != 0x05:
             return
-        # Reply: no auth required
-        cli.sendall(b"\x05\x00")
+        
+        cfg = get_config()
+        auth_user = cfg.get("proxy_user", PROXY_USER)
+        auth_pass = cfg.get("proxy_pass", PROXY_PASS)
+        
+        # Check if client supports username/password auth (0x02)
+        methods = data[2:]
+        if 0x02 in methods and auth_user:
+            # Username/password auth required
+            cli.sendall(b"\x05\x02")
+            
+            # Step 1b: Receive username/password
+            auth_data = cli.recv(4096)
+            if len(auth_data) < 3 or auth_data[0] != 0x05:
+                return
+            
+            ulen = auth_data[1]
+            username = auth_data[2:2+ulen].decode()
+            plen = auth_data[2+ulen]
+            password = auth_data[3+ulen:3+ulen+plen].decode()
+            
+            # Verify credentials
+            if username != auth_user or password != auth_pass:
+                cli.sendall(b"\x05\x01")  # Auth failure
+                return
+            cli.sendall(b"\x05\x00")  # Auth success
+        elif 0x00 in methods:
+            # No auth
+            cli.sendall(b"\x05\x00")
+        else:
+            # No acceptable methods
+            cli.sendall(b"\x05\xff")
+            return
         
         # Step 2: Connection request
         req = cli.recv(4096)
@@ -767,8 +798,10 @@ async function fetchStatus() {{
       pc.textContent = `节点池: ${{det.pool_size||0}}`;
       const proxyDiv = document.getElementById('proxy-address');
       const proxyUrl = document.getElementById('proxy-url');
+      const pUser = det.proxy_user || 'proxy';
+      const pPass = det.proxy_pass || '***';
       const pPort = det.proxy_port || 8888;
-      proxyUrl.textContent = `socks5://${{nodes[0].ip}}:${{pPort}}`;
+      proxyUrl.textContent = `socks5://${{pUser}}:${{pPass}}@${{nodes[0].ip}}:${{pPort}}`;
       proxyDiv.classList.remove('hidden');
     }} else {{
       st.textContent = '离线';
