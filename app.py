@@ -758,6 +758,7 @@ if __name__ == "__main__":
     threading.Thread(target=srv.start, daemon=True).start()
 
     httpd = http.server.HTTPServer(("0.0.0.0", LISTEN_PORT), Handler)
+    httpd.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     print(f"[*] Dashboard: http://0.0.0.0:{LISTEN_PORT}", flush=True)
     try:
         httpd.serve_forever()
