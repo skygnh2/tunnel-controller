@@ -124,15 +124,41 @@ def fetch_proxies(url):
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=15) as res:
-            data = json.loads(res.read().decode())
-        if data.get("code") != "10001":
-            print(f"[!] API error: {data.get('msg', 'unknown')}", flush=True)
-            return []
+            text = res.read().decode()
+
         proxies = []
-        for p in data.get("data", {}).get("proxy_list", []):
-            protocol = p.get("protocol", "http").lower()
-            if protocol in ("http", "https", "socks4", "socks5"):
-                proxies.append({"ip": p["ip"], "port": int(p["port"]), "protocol": protocol, "failures": 0})
+
+        # Try JSON format (zdopen.com style)
+        try:
+            data = json.loads(text)
+            if data.get("code") == "10001":
+                for p in data.get("data", {}).get("proxy_list", []):
+                    protocol = p.get("protocol", "http").lower()
+                    if protocol in ("http", "https", "socks4", "socks5"):
+                        proxies.append({"ip": p["ip"], "port": int(p["port"]), "protocol": protocol, "failures": 0})
+                return proxies
+        except:
+            pass
+
+        # Try plain text format (ip:port or protocol://ip:port)
+        for line in text.strip().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            protocol = "http"
+            raw = line
+            if "://" in raw:
+                protocol, raw = raw.split("://", 1)
+            if ":" in raw:
+                parts = raw.split(":")
+                ip = parts[0].strip()
+                try:
+                    port = int(parts[1].strip().split()[0])
+                    if ip and port > 0:
+                        proxies.append({"ip": ip, "port": port, "protocol": protocol, "failures": 0})
+                except:
+                    pass
+
         return proxies
     except Exception as e:
         print(f"[!] Node list fetch failed: {e}", flush=True)
@@ -155,17 +181,34 @@ def check_proxy(proxy, target_url, timeout=5):
 def refresh_pool():
     global proxy_pool
     cfg = get_config()
-    source_url = cfg.get("proxy_source", DEFAULT_CONFIG["proxy_source"])
+    source_urls = cfg.get("proxy_source", DEFAULT_CONFIG["proxy_source"])
     target_url = cfg.get("target_url", DEFAULT_CONFIG["target_url"])
     max_w = int(cfg.get("max_workers", 20))
 
-    print(f"[*] Fetching nodes from: {source_url}", flush=True)
-    raw = fetch_proxies(source_url)
-    print(f"[*] Got {len(raw)} nodes, checking...", flush=True)
+    # Support multiple sources (comma-separated)
+    urls = [u.strip() for u in source_urls.split(",") if u.strip()]
+
+    all_raw = []
+    for url in urls:
+        print(f"[*] Fetching from: {url}", flush=True)
+        raw = fetch_proxies(url)
+        print(f"[*] Got {len(raw)} nodes", flush=True)
+        all_raw.extend(raw)
+
+    # Deduplicate by ip:port
+    seen = set()
+    unique = []
+    for p in all_raw:
+        key = f"{p['ip']}:{p['port']}"
+        if key not in seen:
+            seen.add(key)
+            unique.append(p)
+
+    print(f"[*] Total unique nodes: {len(unique)}, checking...", flush=True)
 
     valid = []
     with ThreadPoolExecutor(max_workers=max_w) as ex:
-        futs = {ex.submit(check_proxy, p, target_url): p for p in raw}
+        futs = {ex.submit(check_proxy, p, target_url): p for p in unique}
         for f in as_completed(futs):
             ok, lat = f.result()
             if ok:
@@ -177,8 +220,8 @@ def refresh_pool():
         valid.sort(key=lambda x: x["latency"])
         proxy_pool = valid[:100]
 
-    print(f"[*] Available: {len(proxy_pool)}/{len(raw)}", flush=True)
-    report_log(f"Pool refresh: {len(proxy_pool)}/{len(raw)}")
+    print(f"[*] Available: {len(proxy_pool)}/{len(unique)}", flush=True)
+    report_log(f"Pool refresh: {len(proxy_pool)}/{len(unique)}")
 
 def get_next_proxy():
     with pool_lock:
