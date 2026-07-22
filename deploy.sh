@@ -9,7 +9,8 @@ echo "  Tunnel Controller - Deploy"
 echo "========================================"
 
 echo "[1/3] Installing dependencies..."
-apt-get update -qq && apt-get install -y -qq python3 git > /dev/null 2>&1
+apt-get update -qq
+apt-get install -y python3 git
 
 echo "[2/3] Pulling source from GitHub..."
 mkdir -p $INSTALL_DIR
@@ -17,7 +18,6 @@ cd $INSTALL_DIR
 if [ -d ".git" ]; then
     git pull
 else
-    rm -f app.py
     git clone $REPO_URL .
 fi
 
@@ -29,7 +29,6 @@ After=network.target
 
 [Service]
 Type=simple
-Environment="LISTEN_PORT=7910"
 WorkingDirectory=/opt/tunnel_controller
 ExecStart=/usr/bin/python3 -u app.py
 Restart=always
