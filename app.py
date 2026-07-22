@@ -396,7 +396,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         if path == "/":
             if not get_auth_from_handler(self):
-                return self.send_text("Unauthorized", status=401)
+                body = b"Unauthorized"
+                self.send_response(401)
+                self.send_header("WWW-Authenticate", 'Basic realm="Tunnel Controller"')
+                self.send_header("Content-Type", "text/plain")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             return self.send_text(DASHBOARD_HTML(), "text/html")
 
         self.send_text("Not Found", status=404)
