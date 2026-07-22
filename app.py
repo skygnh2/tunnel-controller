@@ -99,6 +99,7 @@ DEFAULT_CONFIG = {
     "rotation_mode": "request",
     "rotation_interval": "0",
     "max_workers": "20",
+    "sticky_count": "10",
     "proxy_source": "https://www.jiliuip.com/free",
     "web_user": WEB_USER,
     "web_pass": WEB_PASS,
@@ -140,6 +141,8 @@ class AuthMixin:
 proxy_pool = []
 pool_lock = threading.Lock()
 refresh_lock = threading.Lock()
+current_proxy = None
+proxy_request_count = 0
 rotation_count = 0
 start_time = time.time()
 running = True
@@ -272,12 +275,24 @@ def refresh_pool():
         refresh_lock.release()
 
 def get_next_proxy():
+    global current_proxy, proxy_request_count
+    cfg = get_config()
+    sticky_count = int(cfg.get("sticky_count", 10))  # Use same proxy for N requests
+    
     with pool_lock:
         if not proxy_pool:
             return None
-        p = proxy_pool.pop(0)
-        proxy_pool.append(p)
-        return p
+        
+        # If current proxy is still sticky, reuse it
+        if current_proxy and proxy_request_count < sticky_count:
+            proxy_request_count += 1
+            return current_proxy
+        
+        # Rotate to next proxy
+        current_proxy = proxy_pool.pop(0)
+        proxy_pool.append(current_proxy)
+        proxy_request_count = 1
+        return current_proxy
 
 def relay(s1, s2):
     socks = [s1, s2]
@@ -627,6 +642,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "rotation_mode": data.get("rotation_mode") or current.get("rotation_mode", DEFAULT_CONFIG["rotation_mode"]),
                 "rotation_interval": str(data.get("rotation_interval") or current.get("rotation_interval", DEFAULT_CONFIG["rotation_interval"])),
                 "max_workers": str(data.get("max_workers") or current.get("max_workers", DEFAULT_CONFIG["max_workers"])),
+                "sticky_count": str(data.get("sticky_count") or current.get("sticky_count", DEFAULT_CONFIG["sticky_count"])),
                 "proxy_source": data.get("proxy_source") if data.get("proxy_source") is not None else current.get("proxy_source", DEFAULT_CONFIG["proxy_source"]),
                 "web_user": data.get("web_user") or current.get("web_user", DEFAULT_CONFIG["web_user"]),
                 "web_pass": data.get("web_pass") or current.get("web_pass", DEFAULT_CONFIG["web_pass"]),
@@ -704,6 +720,8 @@ body {{ font-family: 'Inter', sans-serif; background: #0f172a; }}
         </div></div>
       <div class="mt-4"><label class="text-xs text-slate-400 font-medium">轮换间隔 (秒) <span class="text-slate-600">- 0=禁用，仅定时模式生效</span></label>
         <input id="rotation-interval" type="number" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value="0"></div>
+      <div class="mt-4"><label class="text-xs text-slate-400 font-medium">粘性请求数 <span class="text-slate-600">- 同一代理连续使用次数</span></label>
+        <input id="sticky-count" type="number" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value="10"></div>
       <div class="mt-4 grid grid-cols-2 gap-4">
         <div><label class="text-xs text-slate-400 font-medium">面板用户名</label>
           <input id="web-user" class="w-full mt-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white" value=""></div>
@@ -760,6 +778,7 @@ async function fetchConfig() {{
     document.getElementById('web-pass').value = c.web_pass || '';
     document.getElementById('proxy-user').value = c.proxy_user || '';
     document.getElementById('proxy-pass').value = c.proxy_pass || '';
+    document.getElementById('sticky-count').value = c.sticky_count || 10;
   }} catch(e) {{}}
 }}
 async function saveConfig() {{
@@ -771,6 +790,7 @@ async function saveConfig() {{
     rotation_mode: mode,
     rotation_interval: parseInt(document.getElementById('rotation-interval').value) || 0,
     max_workers: parseInt(document.getElementById('max-workers').value) || 20,
+    sticky_count: parseInt(document.getElementById('sticky-count').value) || 10,
     proxy_source: document.getElementById('proxy-source').value,
     web_user: document.getElementById('web-user').value,
     web_pass: document.getElementById('web-pass').value,
