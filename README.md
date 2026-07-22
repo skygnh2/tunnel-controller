@@ -15,7 +15,7 @@ Multi-node tunnel scheduling engine with web dashboard.
 
 ```bash
 # One-line deploy on fresh VPS (Debian/Ubuntu)
-curl -sL https://raw.githubusercontent.com/YOUR_USERNAME/tunnel-controller/main/deploy.sh | bash
+curl -sL https://raw.githubusercontent.com/skygnh2/tunnel-controller/main/deploy.sh | bash
 
 # Or manual
 git clone https://github.com/YOUR_USERNAME/tunnel-controller.git /opt/tunnel_controller
