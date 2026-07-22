@@ -2,7 +2,7 @@
 set -e
 
 INSTALL_DIR="/opt/tunnel_controller"
-REPO_URL="${1:-https://github.com/YOUR_USERNAME/tunnel-controller.git}"
+REPO_URL="https://github.com/skygnh2/tunnel-controller.git"
 
 echo "========================================"
 echo "  Tunnel Controller - Deploy"
