@@ -47,6 +47,14 @@ def init_db():
             log TEXT,
             created_at INTEGER
         );
+        CREATE TABLE IF NOT EXISTS proxy_pool (
+            ip TEXT,
+            port INTEGER,
+            protocol TEXT,
+            latency REAL,
+            failures INTEGER DEFAULT 0,
+            PRIMARY KEY (ip, port)
+        );
     """)
     conn.commit()
     conn.close()
@@ -69,6 +77,21 @@ def db_execute(sql, params=()):
     finally:
         conn.close()
 
+def save_pool_to_db(pool):
+    """Persist proxy pool to database."""
+    db_execute("DELETE FROM proxy_pool")
+    for p in pool:
+        db_execute("INSERT INTO proxy_pool (ip, port, protocol, latency, failures) VALUES (?, ?, ?, ?, ?)",
+                   (p["ip"], p["port"], p.get("protocol", "http"), p.get("latency", 0), p.get("failures", 0)))
+
+def load_pool_from_db():
+    """Load proxy pool from database on startup."""
+    rows = db_query("SELECT ip, port, protocol, latency, failures FROM proxy_pool")
+    if rows:
+        return [{"ip": r["ip"], "port": r["port"], "protocol": r.get("protocol", "http"),
+                 "latency": r.get("latency", 0), "failures": r.get("failures", 0)} for r in rows]
+    return []
+
 DEFAULT_CONFIG = {
     "target_url": "https://www.cloudflare.com",
     "proxy_port": "8888",
@@ -76,7 +99,7 @@ DEFAULT_CONFIG = {
     "rotation_mode": "request",
     "rotation_interval": "0",
     "max_workers": "20",
-    "proxy_source": "",
+    "proxy_source": "https://www.jiliuip.com/free",
     "web_user": WEB_USER,
     "web_pass": WEB_PASS,
     "proxy_user": PROXY_USER,
@@ -139,6 +162,22 @@ def fetch_proxies(url):
                 return proxies
         except:
             pass
+
+        # Try jiliuip.com HTML format (fpsList embedded in JS)
+        import re
+        match = re.search(r'const\s+fpsList\s*=\s*(\[.*?\]);', text, re.DOTALL)
+        if match:
+            try:
+                fps_list = json.loads(match.group(1))
+                for p in fps_list:
+                    ip = p.get("ip", "")
+                    port = p.get("port", "")
+                    if ip and port:
+                        proxies.append({"ip": ip, "port": int(port), "protocol": "http", "failures": 0})
+                if proxies:
+                    return proxies
+            except:
+                pass
 
         # Try plain text format (ip:port or protocol://ip:port)
         for line in text.strip().splitlines():
@@ -219,6 +258,9 @@ def refresh_pool():
     with pool_lock:
         valid.sort(key=lambda x: x["latency"])
         proxy_pool = valid[:100]
+
+    # Persist pool to database
+    save_pool_to_db(proxy_pool)
 
     print(f"[*] Available: {len(proxy_pool)}/{len(unique)}", flush=True)
     report_log(f"Pool refresh: {len(proxy_pool)}/{len(unique)}")
@@ -372,6 +414,14 @@ def heartbeat_loop():
             pass
 
 def pool_refresh_loop():
+    # Try loading persisted pool on first run
+    with pool_lock:
+        saved = load_pool_from_db()
+        if saved:
+            global proxy_pool
+            proxy_pool = saved
+            print(f"[*] Loaded {len(saved)} proxies from database", flush=True)
+
     time.sleep(5)
     while running:
         refresh_pool()
@@ -684,6 +734,13 @@ if __name__ == "__main__":
     print(f"  Dashboard: http://0.0.0.0:{LISTEN_PORT}")
     print(f"  Tunnel:    port {int(get_config().get('proxy_port', 8888))}")
     print("=" * 50)
+
+    # Load persisted pool before starting refresh loop
+    saved_pool = load_pool_from_db()
+    if saved_pool:
+        with pool_lock:
+            proxy_pool.extend(saved_pool)
+        print(f"[*] Restored {len(saved_pool)} proxies from database", flush=True)
 
     threading.Thread(target=refresh_pool, daemon=True).start()
     threading.Thread(target=pool_refresh_loop, daemon=True).start()
